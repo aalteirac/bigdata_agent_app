@@ -104,8 +104,156 @@ st.markdown("""
     div[data-testid="stTabs"] button {
         font-weight: 500;
     }
+    .mcp-section {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        border: 1px solid #e9ecef;
+    }
+    .mcp-section h1, .mcp-section h2, .mcp-section h3, .mcp-section h4, .mcp-section h5 {
+        color: #212529;
+        margin-top: 0.5rem;
+    }
+    .mcp-content {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .mcp-content table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        margin: 0.5rem 0;
+        background: white;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    .mcp-content th {
+        background: #0d6efd;
+        color: white;
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+    }
+    .mcp-content td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .mcp-content tr:hover {
+        background: #f1f3f4;
+    }
+    .mcp-content p {
+        margin: 0.5rem 0;
+        line-height: 1.6;
+    }
+    .mcp-content strong {
+        color: #212529;
+    }
+    .mcp-content code {
+        background: #e9ecef;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+def render_mcp_content(text_content):
+    """Render MCP markdown content with nice formatting for tearsheet"""
+    import re
+    sections = re.split(r'\n(?=#{1,3}\s)', text_content)
+    
+    for section in sections:
+        if not section.strip():
+            continue
+        lines = section.strip().split('\n')
+        header = lines[0] if lines else ""
+        content = '\n'.join(lines[1:]) if len(lines) > 1 else ""
+        
+        if header.startswith('# '):
+            st.markdown(f"### {header[2:]}")
+        elif header.startswith('## '):
+            with st.expander(header[3:], expanded=True):
+                st.markdown(content, unsafe_allow_html=True)
+        elif header.startswith('### '):
+            with st.expander(header[4:], expanded=True):
+                st.markdown(content, unsafe_allow_html=True)
+        else:
+            st.markdown(section, unsafe_allow_html=True)
+
+def render_companies(data):
+    """Render Find Companies results"""
+    if isinstance(data, list):
+        companies = data
+    else:
+        companies = data if isinstance(data, list) else []
+    
+    st.markdown(f'<div class="result-count">{len(companies)} companies found</div>', unsafe_allow_html=True)
+    
+    for company in companies:
+        company_type = company.get('type', 'Unknown')
+        badge_class = 'badge-success' if company_type == 'Public' else 'badge-primary'
+        listings = company.get('listing_values') or []
+        listings_str = ', '.join(listings[:3]) if listings else 'N/A'
+        
+        st.markdown(f"""
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:start;">
+                <div>
+                    <div class="card-title">{company.get('name', 'Unknown')}</div>
+                    <div class="card-meta">
+                        <span class="badge {badge_class}">{company_type}</span>
+                        <span class="badge badge-primary">{company.get('sector', 'N/A')}</span>
+                        <span>{company.get('country', '')}</span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <code style="background:#e7f1ff;padding:0.3rem 0.6rem;border-radius:4px;font-weight:600;color:#0d6efd;">{company.get('id', '')}</code>
+                </div>
+            </div>
+            <div class="card-text" style="margin-top:0.75rem;">{company.get('description', 'No description available') or 'No description available'}</div>
+            <div class="card-meta" style="margin-top:0.5rem;">
+                <strong>Listings:</strong> {listings_str}
+                {f' | <a href="{company.get("webpage")}" target="_blank">{company.get("webpage")}</a>' if company.get('webpage') else ''}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_search_results(data):
+    """Render MCP Search results"""
+    results = data.get('results', []) if isinstance(data, dict) else []
+    
+    st.markdown(f'<div class="result-count">{len(results)} results found</div>', unsafe_allow_html=True)
+    
+    for result in results:
+        source_name = result.get('source', {}).get('name', 'Unknown')
+        timestamp = result.get('timestamp', '')[:10] if result.get('timestamp') else ''
+        headline = result.get('headline', 'No headline')
+        url = result.get('url', '')
+        chunks = result.get('chunks', [])
+        
+        st.markdown(f"""
+        <div class="card">
+            <div class="card-title">
+                {'<a href="' + url + '" target="_blank" style="color:#212529;text-decoration:none;">' + headline + '</a>' if url else headline}
+            </div>
+            <div class="card-meta">
+                <span class="badge badge-primary">{source_name}</span>
+                <span>{timestamp}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        for chunk in chunks[:2]:
+            relevance = chunk.get('relevance', 0)
+            text = chunk.get('text', '')
+            col_rel, col_text = st.columns([1, 9])
+            with col_rel:
+                st.markdown(f'<span class="badge badge-success">{relevance:.0%}</span>', unsafe_allow_html=True)
+            with col_text:
+                st.markdown(f'<div class="card-text">{text[:500]}{"..." if len(text) > 500 else ""}</div>', unsafe_allow_html=True)
+        
+        st.markdown("---")
 
 logo_b64 = get_image_base64("logo.png")
 st.markdown(f'''<div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
@@ -232,7 +380,16 @@ with tab2:
                     if "error" in data:
                         st.error(f"Error: {data['error']}")
                     else:
-                        st.json(data)
+                        content = data.get("content", [])
+                        if content and len(content) > 0:
+                            text_content = content[0].get("text", "")
+                            try:
+                                companies_data = json.loads(text_content)
+                                render_companies(companies_data)
+                            except:
+                                st.markdown(text_content)
+                        else:
+                            st.json(data)
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
     
@@ -251,7 +408,12 @@ with tab2:
                     if "error" in data:
                         st.error(f"Error: {data['error']}")
                     else:
-                        st.json(data)
+                        content = data.get("content", [])
+                        if content and len(content) > 0:
+                            text_content = content[0].get("text", "")
+                            render_mcp_content(text_content)
+                        else:
+                            st.json(data)
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
     
@@ -266,7 +428,16 @@ with tab2:
                     if "error" in data:
                         st.error(f"Error: {data['error']}")
                     else:
-                        st.json(data)
+                        content = data.get("content", [])
+                        if content and len(content) > 0:
+                            text_content = content[0].get("text", "")
+                            try:
+                                search_data = json.loads(text_content)
+                                render_search_results(search_data)
+                            except:
+                                st.markdown(text_content)
+                        else:
+                            st.json(data)
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 

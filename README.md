@@ -59,7 +59,6 @@ snow app run --connection <CONNECTION_NAME>
 Or use the Makefile:
 
 ```bash
-make deploy
 make run
 ```
 
