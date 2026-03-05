@@ -22,7 +22,7 @@ This Native App exposes Bigdata.com API and MCP tools as Snowflake stored proced
 1. A Bigdata.com API key from [Developer Platform](https://platform.bigdata.com/api-keys)
 
 ## Usage
-
+ 
 ### API Tools - Direct Calls
 
 ```sql
